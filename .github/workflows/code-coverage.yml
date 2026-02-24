@@ -1,0 +1,104 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Job 1: Backend Coverage
+  backend-coverage:
+    name: Backend Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore Backend/Nexus.sln
+
+    - name: Build
+      run: dotnet build Backend/Nexus.sln --configuration Release --no-restore
+
+    - name: Test with Coverage
+      run: |
+        dotnet tool install -g dotnet-coverage
+        dotnet-coverage collect "dotnet test Backend/Nexus.sln --configuration Release --no-build" -f xml -o coverage.xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml
+        flags: backend
+        name: backend-coverage
+        fail_ci_if_error: false
+
+    - name: Generate Report
+      run: |
+        dotnet tool install -g dotnet-reportgenerator-globaltool
+        reportgenerator -reports:coverage.xml -targetdir:coveragereport -reporttypes:Html
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-coverage-report
+        path: coveragereport
+        retention-days: 7
+
+  # Job 2: Coverage Summary
+  coverage-summary:
+    name: Coverage Summary
+    runs-on: ubuntu-latest
+    needs: [backend-coverage]
+    
+    steps:
+    - name: Download coverage
+      uses: actions/download-artifact@v4
+      with:
+        name: backend-coverage-report
+
+    - name: Comment on PR
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          const fs = require('fs');
+          const path = './summary.md';
+          
+          let body = '## 📊 Code Coverage Report\n\n';
+          body += '| Module | Coverage |\n';
+          body += '|--------|----------|\n';
+          body += '| Backend | TBD |\n';
+          
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const botComment = comments.find(comment => {
+            return comment.user.type === 'Bot' && comment.body.includes('Code Coverage Report')
+          });
+          
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }

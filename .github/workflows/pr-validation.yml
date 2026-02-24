@@ -1,0 +1,158 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  # Job 1: Validate PR Title
+  validate-pr-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check PR Title
+      uses: amannn/action-semantic-pull-request@v5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        types: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          test
+          chore
+          ci
+        requireScope: false
+
+  # Job 2: Check Code Changes
+  check-changes:
+    name: Check Code Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      mobile: ${{ steps.changes.outputs.mobile }}
+      docs: ${{ steps.changes.outputs.docs }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check for changes
+      uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          backend:
+            - 'Backend/**'
+          mobile:
+            - 'mobile/**'
+          docs:
+            - 'docs/**'
+            - '*.md'
+
+  # Job 3: Backend PR Check
+  backend-check:
+    name: Backend PR Check
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.backend == 'true' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore
+      run: dotnet restore Backend/Nexus.sln
+
+    - name: Build
+      run: dotnet build Backend/Nexus.sln --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test Backend/Nexus.sln --configuration Release --no-build
+
+  # Job 4: Mobile PR Check
+  mobile-check:
+    name: Mobile PR Check
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.mobile == 'true' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.22.0'
+        channel: 'stable'
+
+    - name: Install dependencies
+      working-directory: ./mobile
+      run: flutter pub get
+
+    - name: Analyze
+      working-directory: ./mobile
+      run: flutter analyze
+
+    - name: Test
+      working-directory: ./mobile
+      run: flutter test
+
+  # Job 5: Notify
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [backend-check, mobile-check]
+    if: always()
+    
+    steps:
+    - name: Comment PR
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const botComment = comments.find(comment => {
+            return comment.user.type === 'Bot' && comment.body.includes('CI Status')
+          });
+          
+          const body = `## CI Status
+          
+          ✅ Backend: ${needs.backend-check.result}
+          ✅ Mobile: ${needs.mobile-check.result}
+          
+          ${needs.backend-check.result === 'success' && needs.mobile-check.result === 'success' 
+            ? '🎉 All checks passed!' 
+            : '❌ Some checks failed. Please review.'}
+          `;
+          
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }

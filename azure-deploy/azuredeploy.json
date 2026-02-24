@@ -1,0 +1,146 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "nexus-pm-api",
+      "metadata": { "description": "Web App name" }
+    },
+    "sqlServerName": {
+      "type": "string",
+      "defaultValue": "nexus-pm-sql",
+      "metadata": { "description": "SQL Server name" }
+    },
+    "sqlAdminLogin": {
+      "type": "string",
+      "defaultValue": "nexusadmin",
+      "metadata": { "description": "SQL Admin username" }
+    },
+    "sqlAdminPassword": {
+      "type": "securestring",
+      "defaultValue": "Nexus@2024!Strong",
+      "metadata": { "description": "SQL Admin password" }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": ["F1", "B1", "B2", "S1"],
+      "metadata": { "description": "App Service Plan tier (F1=Free, B1=Basic)" }
+    }
+  },
+  "variables": {
+    "hostingPlanName": "[concat(parameters('appName'), '-plan')]",
+    "sqlDbName": "NexusPM"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2021-11-01",
+      "name": "[parameters('sqlServerName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "administratorLogin": "[parameters('sqlAdminLogin')]",
+        "administratorLoginPassword": "[parameters('sqlAdminPassword')]",
+        "version": "12.0",
+        "publicNetworkAccess": "Enabled"
+      },
+      "resources": [
+        {
+          "type": "firewallRules",
+          "apiVersion": "2021-11-01",
+          "name": "AllowAllAzureIPs",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "255.255.255.255"
+          }
+        },
+        {
+          "type": "databases",
+          "apiVersion": "2021-11-01",
+          "name": "[variables('sqlDbName')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))]"
+          ],
+          "sku": {
+            "name": "S0",
+            "tier": "Standard"
+          },
+          "properties": {
+            "collation": "SQL_Latin1_General_CP1_CI_AS",
+            "maxSizeBytes": 268435456000
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2022-03-01",
+      "name": "[variables('hostingPlanName')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "[parameters('sku')]",
+        "tier": "[if(equals(parameters('sku'), 'F1'), 'Free', if(or(equals(parameters('sku'), 'B1'), equals(parameters('sku'), 'B2')), 'Basic', 'Standard'))]",
+        "size": "[parameters('sku')]",
+        "family": "[if(equals(parameters('sku'), 'F1'), 'F', 'B')]",
+        "capacity": 1
+      },
+      "kind": "linux",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2022-03-01",
+      "name": "[parameters('appName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "[resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))]"
+      ],
+      "kind": "app,linux",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "siteConfig": {
+          "linuxFxVersion": "DOTNETCORE|9.0",
+          "appCommandLine": "dotnet Nexus.WebApi.dll",
+          "appSettings": [
+            {
+              "name": "ASPNETCORE_ENVIRONMENT",
+              "value": "Production"
+            },
+            {
+              "name": "ASPNETCORE_URLS",
+              "value": "http://+:8080"
+            }
+          ],
+          "connectionStrings": [
+            {
+              "name": "DefaultConnection",
+              "type": "SQLAzure",
+              "connectionString": "[concat('Server=tcp:', parameters('sqlServerName'), '.database.windows.net,1433;Database=', variables('sqlDbName'), ';User ID=', parameters('sqlAdminLogin'), ';Password=', parameters('sqlAdminPassword'), ';Encrypt=true;TrustServerCertificate=false;Connection Timeout=30;')]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "apiUrl": {
+      "type": "string",
+      "value": "[concat('https://', parameters('appName'), '.azurewebsites.net')]"
+    },
+    "swaggerUrl": {
+      "type": "string",
+      "value": "[concat('https://', parameters('appName'), '.azurewebsites.net/swagger')]"
+    },
+    "sqlServerFqdn": {
+      "type": "string",
+      "value": "[reference(parameters('sqlServerName')).fullyQualifiedDomainName]"
+    }
+  }
+}

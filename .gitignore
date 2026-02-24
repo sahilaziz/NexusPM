@@ -1,0 +1,14 @@
+# .NET
+bin/
+obj/
+*.dll
+*.exe
+.vs/
+
+# Flutter
+mobile/.dart_tool/
+mobile/build/
+
+# Secrets
+appsettings.Development.json
+*.key

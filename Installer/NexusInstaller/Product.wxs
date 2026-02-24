@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension"
+     xmlns:iis="http://schemas.microsoft.com/wix/IIsExtension"
+     xmlns:netfx="http://schemas.microsoft.com/wix/NetFxExtension">
+
+  <!-- Product Definition -->
+  <Product Id="*" 
+           Name="Nexus Project Management" 
+           Language="1033" 
+           Version="1.0.0.0" 
+           Manufacturer="SOCAR Azneft" 
+           UpgradeCode="12345678-1234-1234-1234-123456789012">
+    
+    <Package InstallerVersion="500" 
+             Compressed="yes" 
+             InstallScope="perMachine" 
+             InstallPrivileges="elevated"
+             Platform="x64"
+             Description="Nexus Project Management System"
+             Comments="Document and Project Management for Oil &amp; Gas Industry"
+             Languages="1033"
+             SummaryCodepage="1252" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Upgrade Logic -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." 
+                  Schedule="afterInstallInitialize" />
+
+    <!-- Properties -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://www.azneft.az" />
+    <Property Id="ARPNOREPAIR" Value="yes" />
+    <Property Id="ARPNOMODIFY" Value="yes" />
+
+    <!-- SQL Server Properties -->
+    <Property Id="SQLSERVER_TYPE" Value="EXISTING" />
+    <Property Id="SQLSERVER_INSTANCE" Value="SQLEXPRESS" />
+    <Property Id="SQLSERVER_HOST" Value="localhost" />
+    <Property Id="SQLSERVER_PORT" Value="1433" />
+    <Property Id="SQLSERVER_ADMIN_USER" Value="sa" />
+    <Property Id="SQLSERVER_ADMIN_PASSWORD" Hidden="yes" />
+    <Property Id="SQLSERVER_NEXUS_PASSWORD" Hidden="yes" />
+
+    <!-- Authentication Properties -->
+    <Property Id="AUTH_MODE" Value="WINDOWS" />
+    <Property Id="DOMAIN_NAME" Value="" />
+    <Property Id="AD_GROUP_USERS" Value="NexusPM_Users" />
+    <Property Id="AD_GROUP_ADMINS" Value="NexusPM_Admins" />
+
+    <!-- IIS Properties -->
+    <Property Id="IIS_WEBSITE_NAME" Value="NexusPM" />
+    <Property Id="IIS_APP_POOL_NAME" Value="NexusPM" />
+    <Property Id="IIS_PORT" Value="80" />
+    <Property Id="IIS_SSL_PORT" Value="443" />
+
+    <!-- Features -->
+    <Feature Id="Complete" Title="Nexus PM" Description="Complete installation" 
+             Display="expand" Level="1" ConfigurableDirectory="INSTALLFOLDER">
+      
+      <Feature Id="Application" Title="Application Files" Level="1" Absent="disallow">
+        <ComponentGroupRef Id="ApplicationComponents" />
+        <ComponentGroupRef Id="IISComponents" />
+      </Feature>
+
+      <Feature Id="SQLServer" Title="SQL Server Database" Level="1">
+        <Condition Level="0">SQLSERVER_TYPE = "SKIP"</Condition>
+        <ComponentGroupRef Id="SQLComponents" />
+      </Feature>
+
+      <Feature Id="Samples" Title="Sample Data" Level="1000">
+        <Condition Level="1">INSTALLSAMPLES = "1"</Condition>
+        <ComponentGroupRef Id="SampleComponents" />
+      </Feature>
+    </Feature>
+
+    <!-- Prerequisites -->
+    <PropertyRef Id="NETFRAMEWORK45" />
+    <Condition Message="This application requires .NET Framework 4.8 or higher. Please install it first.">
+      <![CDATA[Installed OR (NETFRAMEWORK45 >= 528040)]]>
+    </Condition>
+
+    <!-- IIS Check -->
+    <Property Id="IIS_MAJOR_VERSION">
+      <RegistrySearch Id="CheckIISVersion" Root="HKLM" Key="SOFTWARE\Microsoft\InetStp" Name="MajorVersion" Type="raw" />
+    </Property>
+    <Condition Message="This application requires IIS 7.0 or higher. Please install IIS first.">
+      <![CDATA[Installed OR IIS_MAJOR_VERSION >= "#7"]]>
+    </Condition>
+
+    <!-- UI -->
+    <UIRef Id="WixUI_InstallDir" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+    
+    <!-- Custom Actions -->
+    <Binary Id="CustomActionsCA" SourceFile="$(var.CustomActions.TargetDir)$(var.CustomActions.TargetName).dll" />
+
+    <!-- SQL Installation Custom Actions -->
+    <CustomAction Id="CA_CheckSQLConnection" 
+                  BinaryKey="CustomActionsCA" 
+                  DllEntry="CheckSQLConnection" 
+                  Execute="immediate" 
+                  Return="check" />
+
+    <CustomAction Id="CA_InstallSQLServer" 
+                  BinaryKey="CustomActionsCA" 
+                  DllEntry="InstallSQLServer" 
+                  Execute="deferred" 
+                  Return="check" 
+                  Impersonate="no" />
+
+    <CustomAction Id="CA_CreateDatabase" 
+                  BinaryKey="CustomActionsCA" 
+                  DllEntry="CreateDatabase" 
+                  Execute="deferred" 
+                  Return="check" 
+                  Impersonate="no" />
+
+    <CustomAction Id="CA_ConfigureIIS" 
+                  BinaryKey="CustomActionsCA" 
+                  DllEntry="ConfigureIIS" 
+                  Execute="deferred" 
+                  Return="check" 
+                  Impersonate="no" />
+
+    <CustomAction Id="CA_ConfigureAD" 
+                  BinaryKey="CustomActionsCA" 
+                  DllEntry="ConfigureActiveDirectory" 
+                  Execute="deferred" 
+                  Return="ignore" 
+                  Impersonate="no" />
+
+    <CustomAction Id="CA_SetPermissions" 
+                  BinaryKey="CustomActionsCA" 
+                  DllEntry="SetFolderPermissions" 
+                  Execute="deferred" 
+                  Return="check" 
+                  Impersonate="no" />
+
+    <!-- Installation Sequence -->
+    <InstallExecuteSequence>
+      <!-- Check SQL Connection if using existing -->
+      <Custom Action="CA_CheckSQLConnection" Before="InstallFiles">
+        <![CDATA[SQLSERVER_TYPE = "EXISTING" AND NOT Installed]]>
+      </Custom>
+
+      <!-- Install SQL Server if needed -->
+      <Custom Action="CA_InstallSQLServer" After="InstallFiles">
+        <![CDATA[SQLSERVER_TYPE = "INSTALL" AND NOT Installed]]>
+      </Custom>
+
+      <!-- Create Database -->
+      <Custom Action="CA_CreateDatabase" After="CA_InstallSQLServer">
+        <![CDATA[NOT Installed]]>
+      </Custom>
+
+      <!-- Configure IIS -->
+      <Custom Action="CA_ConfigureIIS" After="CA_CreateDatabase">
+        <![CDATA[NOT Installed]]>
+      </Custom>
+
+      <!-- Configure Active Directory -->
+      <Custom Action="CA_ConfigureAD" After="CA_ConfigureIIS">
+        <![CDATA[AUTH_MODE = "WINDOWS" AND NOT Installed]]>
+      </Custom>
+
+      <!-- Set Permissions -->
+      <Custom Action="CA_SetPermissions" After="CA_ConfigureAD">
+        <![CDATA[NOT Installed]]>
+      </Custom>
+    </InstallExecuteSequence>
+
+  </Product>
+
+  <!-- Directory Structure -->
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <!-- Program Files -->
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="COMPANYFOLDER" Name="SOCAR">
+          <Directory Id="INSTALLFOLDER" Name="NexusPM">
+            <Directory Id="APPFOLDER" Name="API" />
+            <Directory Id="DOCSFOLDER" Name="Documents" />
+            <Directory Id="LOGSFOLDER" Name="Logs" />
+            <Directory Id="SCRIPTSFOLDER" Name="Scripts" />
+            <Directory Id="CONFIGFOLDER" Name="Config" />
+          </Directory>
+        </Directory>
+      </Directory>
+
+      <!-- Program Menu -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="Nexus PM" />
+      </Directory>
+
+      <!-- Web Directory -->
+      <Directory Id="INETPUB" Name="inetpub">
+        <Directory Id="WWWROOT" Name="wwwroot" />
+      </Directory>
+    </Directory>
+  </Fragment>
+
+  <!-- Components -->
+  <Fragment>
+    <ComponentGroup Id="ApplicationComponents" Directory="APPFOLDER">
+      <!-- Main Application Files -->
+      <Component Id="C_NexusAPI.dll" Guid="*">
+        <File Id="F_NexusAPI.dll" Source="$(var.APISourceDir)\Nexus.API.dll" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="C_appsettings.json" Guid="*" NeverOverwrite="yes">
+        <File Id="F_appsettings.json" Source="$(var.APISourceDir)\appsettings.json" />
+      </Component>
+      
+      <Component Id="C_web.config" Guid="*">
+        <File Id="F_web.config" Source="$(var.APISourceDir)\web.config" />
+      </Component>
+
+      <!-- Create Web.config template -->
+      <Component Id="C_web_config_template" Guid="*">
+        <File Id="F_web_config_template" Source="Templates\web.config.template" Name="web.config.template" />
+      </Component>
+
+      <!-- Registry Entries -->
+      <Component Id="C_Registry" Guid="*">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\SOCAR\NexusPM">
+          <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLFOLDER]" />
+          <RegistryValue Type="string" Name="Version" Value="1.0.0.0" />
+          <RegistryValue Type="integer" Name="Installed" Value="1" />
+        </RegistryKey>
+      </Component>
+
+      <!-- Shortcuts -->
+      <Component Id="C_Shortcuts" Guid="*">
+        <Shortcut Id="StartMenuShortcut" 
+                  Directory="ApplicationProgramsFolder" 
+                  Name="Nexus PM Admin"
+                  Target="[SystemFolder]cmd.exe"
+                  Arguments="/c start http://localhost/admin"
+                  Icon="icon.ico"
+                  WorkingDirectory="INSTALLFOLDER" />
+        
+        <Shortcut Id="UninstallProduct" 
+                  Directory="ApplicationProgramsFolder" 
+                  Name="Uninstall Nexus PM"
+                  Target="[SystemFolder]msiexec.exe"
+                  Arguments="/x [ProductCode]"
+                  Description="Uninstalls Nexus PM" />
+        
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="SQLComponents" Directory="SCRIPTSFOLDER">
+      <Component Id="C_SQLScripts" Guid="*">
+        <File Id="F_CreateDatabase.sql" Source="..\Scripts\SQL\001_CreateDatabase.sql" />
+        <File Id="F_CreateProcedures.sql" Source="..\Scripts\SQL\002_StoredProcedures.sql" />
+        <File Id="F_SeedData.sql" Source="..\Scripts\SQL\003_SeedData.sql" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="SampleComponents" Directory="DOCSFOLDER">
+      <Component Id="C_SampleData" Guid="*">
+        <File Id="F_SampleDocument.pdf" Source="..\Assets\Sample.pdf" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- IIS Configuration -->
+  <Fragment>
+    <ComponentGroup Id="IISComponents">
+      <Component Id="C_IIS_WebSite" Guid="*" KeyPath="yes" Directory="TARGETDIR">
+        <iis:WebSite Id="NexusPM_WebSite" Description="[IIS_WEBSITE_NAME]" Directory="APPFOLDER">
+          <iis:WebAddress Id="AllUnassigned" Port="[IIS_PORT]" />
+          <iis:WebApplication Id="NexusPM_App" Name="NexusPM" WebAppPool="NexusPM_Pool" />
+        </iis:WebSite>
+        
+        <iis:WebAppPool Id="NexusPM_Pool" Name="[IIS_APP_POOL_NAME]" ManagedRuntimeVersion="" ManagedPipelineMode="Integrated">
+          <iis:RecycleTime Value="0" />
+        </iis:WebAppPool>
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+</Wix>
