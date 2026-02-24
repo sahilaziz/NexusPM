@@ -1,6 +1,7 @@
 using MediatR;
 using Nexus.Application.Interfaces.Repositories;
 using Nexus.Domain.Entities;
+using TaskStatus = Nexus.Domain.Entities.TaskStatus;
 
 namespace Nexus.Application.CQRS.Queries.Kanban;
 

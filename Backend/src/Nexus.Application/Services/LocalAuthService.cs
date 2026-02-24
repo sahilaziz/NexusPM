@@ -530,12 +530,6 @@ public class TwoFactorSetupResult
     public string? ErrorMessage { get; set; }
 }
 
-public class ForgotPasswordResult
-{
-    public bool Success { get; set; }
-    public string? Message { get; set; }
-}
-
 public class UserDto
 {
     public long UserId { get; set; }

@@ -1,0 +1,34 @@
+# Multi-stage build for .NET 9
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy project files first (for better caching)
+COPY src/Nexus.Domain/Nexus.Domain.csproj Nexus.Domain/
+COPY src/Nexus.Application/Nexus.Application.csproj Nexus.Application/
+COPY src/Nexus.Infrastructure/Nexus.Infrastructure.csproj Nexus.Infrastructure/
+COPY src/Nexus.API/Nexus.API.csproj Nexus.API/
+
+# Restore dependencies
+RUN dotnet restore Nexus.API/Nexus.API.csproj
+
+# Copy source code
+COPY src/Nexus.Domain/ Nexus.Domain/
+COPY src/Nexus.Application/ Nexus.Application/
+COPY src/Nexus.Infrastructure/ Nexus.Infrastructure/
+COPY src/Nexus.API/ Nexus.API/
+
+# Build and publish
+RUN dotnet publish Nexus.API/Nexus.API.csproj -c Release -o /app/publish --no-restore
+
+# Runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+EXPOSE 8080
+
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+ENTRYPOINT ["dotnet", "Nexus.API.dll"]

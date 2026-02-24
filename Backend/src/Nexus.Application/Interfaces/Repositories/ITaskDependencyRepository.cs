@@ -1,4 +1,5 @@
 using Nexus.Domain.Entities;
+using TaskStatus = Nexus.Domain.Entities.TaskStatus;
 
 namespace Nexus.Application.Interfaces.Repositories;
 

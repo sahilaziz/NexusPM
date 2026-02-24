@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Nexus.API.Hubs;
 using Nexus.Application.Interfaces.Repositories;
 using Nexus.Domain.Entities;
+using TaskStatus = Nexus.Domain.Entities.TaskStatus;
 
 namespace Nexus.Application.Services;
 
