@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexus.Domain\Nexus.Domain.csproj" />
+    <ProjectReference Include="..\Nexus.Application\Nexus.Application.csproj" />
   </ItemGroup>
 
 </Project>
