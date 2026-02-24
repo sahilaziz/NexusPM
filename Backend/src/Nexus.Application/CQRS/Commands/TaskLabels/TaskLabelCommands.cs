@@ -354,21 +354,19 @@ public class BatchAssignLabelsHandler : IRequestHandler<BatchAssignLabelsCommand
             failedLabelIds.Count,
             failedLabelIds);
     }
-}
 
-// ============== HELPER ==============
-
-private static TaskLabelResponse MapToResponse(TaskLabel label)
-{
-    return new TaskLabelResponse(
-        label.LabelId,
-        label.Name,
-        label.Description,
-        label.Color,
-        label.SortOrder,
-        label.ProjectId,
-        label.OrganizationCode,
-        label.IsSystem,
-        label.IsActive
-    );
+    private static TaskLabelResponse MapToResponse(TaskLabel label)
+    {
+        return new TaskLabelResponse(
+            label.LabelId,
+            label.Name,
+            label.Description,
+            label.Color,
+            label.SortOrder,
+            label.ProjectId,
+            label.OrganizationCode,
+            label.IsSystem,
+            label.IsActive
+        );
+    }
 }

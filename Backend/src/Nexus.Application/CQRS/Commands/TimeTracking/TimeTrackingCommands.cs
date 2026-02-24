@@ -335,26 +335,24 @@ public class ApproveTimeEntryHandler : IRequestHandler<ApproveTimeEntryCommand, 
         await _unitOfWork.SaveChangesAsync();
         return Unit.Value;
     }
-}
 
-// ============== HELPER ==============
-
-private static TimeEntryResponse MapToResponse(TimeEntry entry, string taskTitle)
-{
-    return new TimeEntryResponse(
-        entry.TimeEntryId,
-        entry.TaskId,
-        taskTitle,
-        entry.UserId,
-        entry.StartTime,
-        entry.EndTime,
-        entry.DurationMinutes,
-        entry.GetFormattedDuration(),
-        entry.Description,
-        entry.WorkType,
-        entry.IsBillable,
-        entry.CalculatedAmount,
-        !entry.EndTime.HasValue,
-        entry.IsApproved
-    );
+    private static TimeEntryResponse MapToResponse(TimeEntry entry, string taskTitle)
+    {
+        return new TimeEntryResponse(
+            entry.TimeEntryId,
+            entry.TaskId,
+            taskTitle,
+            entry.UserId,
+            entry.StartTime,
+            entry.EndTime,
+            entry.DurationMinutes,
+            entry.GetFormattedDuration(),
+            entry.Description,
+            entry.WorkType,
+            entry.IsBillable,
+            entry.CalculatedAmount,
+            !entry.EndTime.HasValue,
+            entry.IsApproved
+        );
+    }
 }
