@@ -24,18 +24,24 @@ jobs:
         run: dotnet restore Nexus.sln
 
       - name: Build solution
-        run: dotnet build Nexus.sln --no-restore --configuration Release
+        run: |
+          echo "=== Building solution... ==="
+          dotnet build Nexus.sln --no-restore --configuration Release --verbosity detailed 2>&1
+        shell: bash
 
       - name: Run Unit Tests
+        if: success()
         run: dotnet test Backend/tests/Nexus.UnitTests/Nexus.UnitTests.csproj --no-build --verbosity normal
 
       - name: Run Integration Tests
+        if: success()
         run: dotnet test Backend/tests/Nexus.IntegrationTests/Nexus.IntegrationTests.csproj --no-build --verbosity normal
 
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: backend
+    if: success()
     
     steps:
       - name: Checkout code
