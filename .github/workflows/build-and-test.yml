@@ -24,9 +24,28 @@ jobs:
         run: dotnet restore Nexus.sln
 
       - name: Build solution
-        run: dotnet build Nexus.sln --no-restore --configuration Release 2>&1
+        run: |
+          echo "=== BUILD STARTING ==="
+          dotnet build Nexus.sln --no-restore --configuration Release 2>&1 | tee build.log
+          echo "=== BUILD COMPLETED ==="
+        shell: bash
+        continue-on-error: true
+
+      - name: Show build errors
+        if: always()
+        run: |
+          echo "=== BUILD LOG ==="
+          cat build.log || echo "No build.log found"
+          echo "================="
+          
+          # Xətaları tap və göstər
+          echo ""
+          echo "=== ERRORS FOUND ==="
+          grep -i "error" build.log || echo "No errors found in log"
+        shell: bash
 
       - name: Run Tests
+        if: success()
         run: |
-          dotnet test Backend/tests/Nexus.UnitTests/Nexus.UnitTests.csproj --verbosity normal || true
-          dotnet test Backend/tests/Nexus.IntegrationTests/Nexus.IntegrationTests.csproj --verbosity normal || true
+          dotnet test Backend/tests/Nexus.UnitTests/Nexus.UnitTests.csproj --verbosity normal
+          dotnet test Backend/tests/Nexus.IntegrationTests/Nexus.IntegrationTests.csproj --verbosity normal
