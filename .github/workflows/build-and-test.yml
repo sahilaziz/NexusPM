@@ -21,24 +21,16 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore dependencies
-        run: |
-          cd Backend
-          dotnet restore --verbosity detailed
+        run: dotnet restore Nexus.sln
 
       - name: Build solution
-        run: |
-          cd Backend
-          dotnet build --no-restore --configuration Release
+        run: dotnet build Nexus.sln --no-restore --configuration Release
 
       - name: Run Unit Tests
-        run: |
-          cd Backend/tests/Nexus.UnitTests
-          dotnet test --verbosity normal
+        run: dotnet test Backend/tests/Nexus.UnitTests/Nexus.UnitTests.csproj --no-build --verbosity normal
 
       - name: Run Integration Tests
-        run: |
-          cd Backend/tests/Nexus.IntegrationTests  
-          dotnet test --verbosity normal
+        run: dotnet test Backend/tests/Nexus.IntegrationTests/Nexus.IntegrationTests.csproj --no-build --verbosity normal
 
   docker:
     name: Docker Build
