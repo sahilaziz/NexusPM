@@ -1,4 +1,4 @@
-name: 🚀 Build & Test
+name: Build & Test
 
 on:
   push:
@@ -7,9 +7,6 @@ on:
     branches: [main, develop]
 
 jobs:
-  # ==========================================
-  # BUILD & TEST BACKEND
-  # ==========================================
   backend:
     name: Backend (.NET 9)
     runs-on: ubuntu-latest
@@ -23,18 +20,10 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
       - name: Restore dependencies
         run: |
           cd Backend
-          dotnet restore
+          dotnet restore --verbosity detailed
 
       - name: Build solution
         run: |
@@ -48,12 +37,9 @@ jobs:
 
       - name: Run Integration Tests
         run: |
-          cd Backend/tests/Nexus.IntegrationTests
+          cd Backend/tests/Nexus.IntegrationTests  
           dotnet test --verbosity normal
 
-  # ==========================================
-  # DOCKER BUILD CHECK
-  # ==========================================
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
